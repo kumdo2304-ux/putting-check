@@ -1,0 +1,17 @@
+{
+  "name": "펠츠 퍼팅 체크",
+  "short_name": "퍼팅체크",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#111827",
+  "description": "데이브 펠츠식 4주 퍼팅 연습 체크 앱",
+  "icons": [
+    {
+      "src": "golf-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

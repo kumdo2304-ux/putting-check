@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="golf-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="golf-icon.svg">
+<title>펠츠 4주 퍼팅 체크</title>
+<style>
+:root{
+  --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
+  --line:#e5e7eb; --accent:#111827; --good:#047857; --warn:#b45309;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:760px;margin:0 auto;padding:16px 14px 40px}
+header{position:sticky;top:0;z-index:5;background:rgba(243,244,246,.94);backdrop-filter:blur(8px);padding:10px 0 12px}
+h1{font-size:24px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px}
+.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.box b{display:block;font-size:21px;margin-top:3px}
+.progress{height:9px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-top:8px}
+.progress>div{height:100%;background:var(--accent);width:0%}
+.week{margin-top:18px}
+.week h2{font-size:18px;margin:0 0 9px}
+.session{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.session-title{font-weight:800}
+.badge{font-size:12px;color:var(--muted);background:#f9fafb;border:1px solid var(--line);padding:5px 8px;border-radius:999px}
+.task{display:grid;grid-template-columns:auto 1fr;gap:10px;border-top:1px solid var(--line);padding:11px 0}
+.task:first-of-type{margin-top:10px}
+input[type=checkbox]{width:24px;height:24px;accent-color:#111827}
+.taskname{font-weight:700;font-size:15px}
+.target{font-size:13px;color:var(--muted);margin-top:3px}
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+label{font-size:12px;color:var(--muted)}
+input[type=number],input[type=date],textarea{
+  width:100%;margin-top:4px;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff;font-size:16px
+}
+textarea{min-height:62px;resize:vertical}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+button{border:0;border-radius:12px;padding:13px 12px;font-size:15px;font-weight:800;cursor:pointer}
+.primary{background:#111827;color:white}
+.secondary{background:white;color:#111827;border:1px solid var(--line)}
+.danger{background:#fff;color:#991b1b;border:1px solid #fecaca}
+.footer{margin-top:20px;color:var(--muted);font-size:12px;line-height:1.5}
+.status{font-size:12px;color:var(--good);margin-top:6px;min-height:16px}
+@media(min-width:620px){.summary{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>🏌️ 펠츠 4주 퍼팅 체크</h1>
+  <div class="sub">주 3회 · 총 12회 · 입력 즉시 자동 저장</div>
+  <div class="summary">
+    <div class="box">완료 세션<b id="doneSessions">0/12</b></div>
+    <div class="box">완료 훈련<b id="doneTasks">0</b></div>
+    <div class="box">3퍼트 총합<b id="threePuttTotal">0</b></div>
+    <div class="box">6m 평균오차<b id="avg6m">-</b></div>
+  </div>
+  <div class="box">
+    <div class="row"><span>전체 진행률</span><b id="pct">0%</b></div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="status" id="saveStatus"></div>
+  </div>
+</header>
+
+<div id="app"></div>
+
+<div class="controls">
+  <button class="primary" onclick="exportCSV()">CSV 내보내기</button>
+  <button class="secondary" onclick="exportJSON()">백업 파일</button>
+</div>
+<div class="controls">
+  <button class="secondary" onclick="document.getElementById('importFile').click()">백업 불러오기</button>
+  <button class="danger" onclick="resetAll()">전체 초기화</button>
+</div>
+<input id="importFile" type="file" accept=".json" hidden onchange="importJSON(event)">
+
+<div class="footer">
+• 6m 평균오차는 cm로 입력하세요.<br>
+• 마지막 실전 훈련에서는 같은 자리에서 여러 공을 반복하기보다 위치를 바꿔 첫 공 기준으로 체크하세요.<br>
+• 기록은 이 브라우저의 기기 저장공간에 보관됩니다. 브라우저 데이터 삭제 시 지워질 수 있으니 가끔 백업 파일을 저장해두세요.
+</div>
+</div>
+
+<script>
+const plan = [
+ {w:1,d:"월",tasks:[
+  ["1m 직선 퍼팅","20개 · 17개 이상 성공","success20"],
+  ["1.5m 4방향","12개 · 9개 이상 성공","success12"],
+  ["3m 거리감","15개 · 10개 이상 50cm 이내","zone15"]
+ ]},
+ {w:1,d:"수",tasks:[
+  ["중앙 임팩트","15개 · 13개 이상","success15"],
+  ["3m·6m 거리감","20개 · 70% 이상 목표 존","zone20"],
+  ["7m 2퍼트","5회 · 3퍼트 0회","three"]
+ ]},
+ {w:1,d:"금",tasks:[
+  ["1m 랜덤","15개 · 13개 이상","success15"],
+  ["5m·7m 랜덤","15개 · 60cm 이내","zone15"],
+  ["10m 실전 퍼팅","5회 · 3퍼트 0회","three"]
+ ]},
+
+ {w:2,d:"월",tasks:[
+  ["1m 직선","20개 · 18개 이상","success20"],
+  ["1.5m 4방향","16개 · 12개 이상","success16"],
+  ["3m·5m 거리감","15개 · 70% 이상","zone15"]
+ ]},
+ {w:2,d:"수",tasks:[
+  ["중앙 임팩트","15개 · 13개 이상","success15"],
+  ["6m 기준거리","15개 · ±50cm 이내","err6"],
+  ["9m 거리감","10개 · 1m 이내 8개","zone10"]
+ ]},
+ {w:2,d:"금",tasks:[
+  ["1.5m 랜덤","15개 · 11개 이상","success15"],
+  ["5m·7m·10m","15개 · 3퍼트 0회","three"],
+  ["마무리 1m","10개 · 9개 이상","success10"]
+ ]},
+
+ {w:3,d:"월",tasks:[
+  ["1m 직선","20개 · 18개 이상","success20"],
+  ["1.5m 8방향","16개 · 12개 이상","success16"],
+  ["3m·6m·9m","18개 · 거리 편차 축소","err6"]
+ ]},
+ {w:3,d:"수",tasks:[
+  ["6m 기준거리","20개 · ±40cm 이내","err6"],
+  ["8m·10m","15개 · 1m 이내 12개","zone15"],
+  ["1m 마무리","10개 · 9개 이상","success10"]
+ ]},
+ {w:3,d:"금",tasks:[
+  ["실전 랜덤 퍼팅","18개 · 모든 공 위치 변경","zone18"],
+  ["5~10m 2퍼트","6회 · 3퍼트 0회","three"],
+  ["압박 1.5m","10개 · 8개 이상","success10"]
+ ]},
+
+ {w:4,d:"월",tasks:[
+  ["1m 테스트","20개 · 18개 이상","success20"],
+  ["1.5m 테스트","20개 · 15개 이상","success20"],
+  ["6m 거리 테스트","15개 · 10개 이상 50cm 이내","err6"]
+ ]},
+ {w:4,d:"수",tasks:[
+  ["3m·6m·9m 랜덤","18개 · 평균 거리편차 최소","err6"],
+  ["10m 퍼팅","10개 · 1m 이내 8개","zone10"],
+  ["1m 마무리","10개 · 9개 이상","success10"]
+ ]},
+ {w:4,d:"금",tasks:[
+  ["최종 실전 테스트","18홀 · 3퍼트 1회 이하","three"],
+  ["1~1.5m","20개 · 16개 이상","success20"],
+  ["5~10m","15개 · 80% 이상 1m 이내","zone15"]
+ ]}
+];
+
+const KEY="pelz_putting_4week_v1";
+let data = JSON.parse(localStorage.getItem(KEY) || "{}");
+
+function save(){
+  localStorage.setItem(KEY, JSON.stringify(data));
+  const s=document.getElementById("saveStatus");
+  s.textContent="✓ 자동 저장됨";
+  setTimeout(()=>s.textContent="",1200);
+  updateSummary();
+}
+function idFor(si,ti){return `s${si}_t${ti}`}
+function ensureSession(si){
+  data[si] ||= {date:"",note:"",tasks:{}};
+}
+function render(){
+  const app=document.getElementById("app");
+  app.innerHTML="";
+  let currentWeek=0;
+  plan.forEach((s,si)=>{
+    ensureSession(si);
+    if(s.w!==currentWeek){
+      currentWeek=s.w;
+      const h=document.createElement("div");
+      h.className="week";
+      h.innerHTML=`<h2>${s.w}주차</h2>`;
+      app.appendChild(h);
+    }
+    const card=document.createElement("section");
+    card.className="session";
+    card.innerHTML=`
+      <div class="row">
+        <div class="session-title">${s.w}주차 ${s.d}요일</div>
+        <span class="badge">세션 ${si+1}/12</span>
+      </div>
+      <div class="inputs" style="grid-template-columns:1fr">
+        <label>연습 날짜<input type="date" value="${data[si].date||""}" onchange="setSession(${si},'date',this.value)"></label>
+      </div>`;
+    s.tasks.forEach((t,ti)=>{
+      const tid=idFor(si,ti);
+      const v=data[si].tasks[ti] || {};
+      let extra="";
+      if(t[2]==="err6"){
+        extra=`<div class="inputs">
+          <label>6m 평균오차(cm)<input type="number" min="0" step="1" value="${v.err??""}" oninput="setTask(${si},${ti},'err',this.value)"></label>
+          <label>성공 개수<input type="number" min="0" step="1" value="${v.count??""}" oninput="setTask(${si},${ti},'count',this.value)"></label>
+        </div>`;
+      } else if(t[2]==="three"){
+        extra=`<div class="inputs">
+          <label>3퍼트 횟수<input type="number" min="0" step="1" value="${v.three??""}" oninput="setTask(${si},${ti},'three',this.value)"></label>
+          <label>성공/완료 횟수<input type="number" min="0" step="1" value="${v.count??""}" oninput="setTask(${si},${ti},'count',this.value)"></label>
+        </div>`;
+      } else {
+        extra=`<div class="inputs">
+          <label>성공 개수<input type="number" min="0" step="1" value="${v.count??""}" oninput="setTask(${si},${ti},'count',this.value)"></label>
+          <label>메모 숫자(선택)<input type="number" step="1" value="${v.extra??""}" oninput="setTask(${si},${ti},'extra',this.value)"></label>
+        </div>`;
+      }
+      const task=document.createElement("div");
+      task.className="task";
+      task.innerHTML=`
+        <input type="checkbox" ${v.done?"checked":""} onchange="setTask(${si},${ti},'done',this.checked)">
+        <div>
+          <div class="taskname">${t[0]}</div>
+          <div class="target">${t[1]}</div>
+          ${extra}
+        </div>`;
+      card.appendChild(task);
+    });
+    const note=document.createElement("label");
+    note.innerHTML=`세션 메모<textarea placeholder="예: 내리막에서 계속 길었음, 1.5m 왼쪽 미스 많음" oninput="setSession(${si},'note',this.value)">${data[si].note||""}</textarea>`;
+    card.appendChild(note);
+    app.appendChild(card);
+  });
+  updateSummary();
+}
+function setSession(si,k,v){ensureSession(si); data[si][k]=v; save()}
+function setTask(si,ti,k,v){
+  ensureSession(si); data[si].tasks[ti] ||= {};
+  data[si].tasks[ti][k]=v; save();
+}
+function updateSummary(){
+  let totalTasks=0,doneTasks=0,doneSessions=0,three=0,errs=[];
+  plan.forEach((s,si)=>{
+    let sd=0;
+    s.tasks.forEach((t,ti)=>{
+      totalTasks++;
+      const v=(data[si]&&data[si].tasks&&data[si].tasks[ti])||{};
+      if(v.done){doneTasks++;sd++}
+      if(v.three!==undefined && v.three!=="") three+=Number(v.three)||0;
+      if(v.err!==undefined && v.err!=="") errs.push(Number(v.err));
+    });
+    if(sd===s.tasks.length) doneSessions++;
+  });
+  const pct=Math.round(doneTasks/totalTasks*100);
+  document.getElementById("doneSessions").textContent=`${doneSessions}/12`;
+  document.getElementById("doneTasks").textContent=`${doneTasks}/${totalTasks}`;
+  document.getElementById("threePuttTotal").textContent=three;
+  document.getElementById("avg6m").textContent=errs.length?`${Math.round(errs.reduce((a,b)=>a+b,0)/errs.length)}cm`:"-";
+  document.getElementById("pct").textContent=pct+"%";
+  document.getElementById("bar").style.width=pct+"%";
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  dl(blob,"pelz-putting-backup.json");
+}
+function importJSON(e){
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{try{data=JSON.parse(r.result);save();render();alert("백업을 불러왔습니다.");}catch{alert("올바른 백업 파일이 아닙니다.");}};
+  r.readAsText(f);
+}
+function exportCSV(){
+  let rows=[["주차","요일","날짜","훈련","목표","완료","성공개수","3퍼트","6m평균오차cm","메모"]];
+  plan.forEach((s,si)=>{
+    const sess=data[si]||{};
+    s.tasks.forEach((t,ti)=>{
+      const v=(sess.tasks&&sess.tasks[ti])||{};
+      rows.push([s.w,s.d,sess.date||"",t[0],t[1],v.done?"Y":"",v.count??"",v.three??"",v.err??"",sess.note||""]);
+    });
+  });
+  const csv="\ufeff"+rows.map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(",")).join("\n");
+  dl(new Blob([csv],{type:"text/csv;charset=utf-8"}),"pelz-putting-record.csv");
+}
+function dl(blob,name){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+function resetAll(){
+  if(confirm("모든 기록을 지울까요? 이 작업은 되돌릴 수 없습니다.")){
+    data={};localStorage.removeItem(KEY);render();
+  }
+}
+render();
+</script>
+<script>
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
